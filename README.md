@@ -12,5 +12,5 @@ sftp windows桌面应用
 注意：上传下载速度偏慢
 
 使用第三方库：
-github.com/lxn/walk 
+github.com/lxn/walk，
 github.com/pkg/sftp 
