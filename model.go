@@ -155,9 +155,23 @@ func (m *NodeModel) WriteSession(c *Client) {
 		return
 	}
 	f.Write(s)
+	f.WriteString("\n")
 	f.Close()
 }
-
+func (m *NodeModel) RemoveSession(c *Client) {
+	file := path.Join(CurDir, SESSION_DATA)
+	f, e := os.OpenFile(file, os.O_RDWR|os.O_TRUNC, 0666)
+	if e != nil {
+		fmt.Errorf("%v\n", e)
+		return
+	}
+	for _, v := range m.nodes {
+		s, _ := json.Marshal(v)
+		f.Write(s)
+		f.WriteString("\n")
+	}
+	f.Close()
+}
 func (m *NodeModel) ItemCount() int {
 	return len(m.nodes)
 }
@@ -167,12 +181,28 @@ func (m *NodeModel) Value(index int) interface{} {
 }
 
 func (m *NodeModel) Add(c *Client) {
+	for _, v := range m.nodes {
+		if v.IP == c.IP {
+			return
+		}
+	}
 	m.nodes = append(m.nodes, c)
 	m.PublishItemsInserted(len(m.nodes)-1, len(m.nodes)-1)
+	m.WriteSession(c)
 }
 func (m *NodeModel) Remove(c *Client) {
-
-	//m.PublishItemsRemoved(len(m.nodes)-1, len(m.nodes)-1)
+	idx := -1
+	for i, v := range m.nodes {
+		if v.IP == c.IP {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return
+	}
+	m.nodes = append(m.nodes[:idx], m.nodes[idx+1:]...)
+	m.RemoveSession(c)
+	m.PublishItemsRemoved(idx, idx)
 }
 func (m *NodeModel) Node(index int) *Client {
 	return m.nodes[index]

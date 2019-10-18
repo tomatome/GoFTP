@@ -229,7 +229,9 @@ func (mw *MyMainWindow) RunNewDialog() {
 									PushButton{
 										Text: "删除会话",
 										OnClicked: func() {
-
+											i := mw.lb.CurrentIndex()
+											node := mw.nodeModel.Node(i)
+											mw.nodeModel.Remove(node)
 										},
 									},
 								},
@@ -243,7 +245,7 @@ func (mw *MyMainWindow) RunNewDialog() {
 							Label{Text: "主机名:"},
 							Label{Text: "端口:"},
 							LineEdit{AssignTo: &ip},
-							NumberEdit{AssignTo: &port, StretchFactor: 4, Value: 22},
+							NumberEdit{AssignTo: &port, StretchFactor: 4, Value: 22.0},
 							Label{Text: "用户名:"},
 							Label{Text: "密码:"},
 							LineEdit{AssignTo: &user},
@@ -251,13 +253,15 @@ func (mw *MyMainWindow) RunNewDialog() {
 							PushButton{
 								Text: "保存",
 								OnClicked: func() {
+									if ip.Text() == "" || user.Text() == "" || passwd.Text() == "" {
+										return
+									}
 									client := newClient()
 									client.IP = ip.Text()
 									client.Port = int(port.Value())
 									client.Username = user.Text()
 									client.Password = passwd.Text()
 									mw.nodeModel.Add(client)
-									mw.nodeModel.WriteSession(client)
 									ip.SetText("")
 									port.SetValue(22)
 									user.SetText("")
@@ -267,7 +271,10 @@ func (mw *MyMainWindow) RunNewDialog() {
 							PushButton{
 								Text: "清空",
 								OnClicked: func() {
-
+									ip.SetText("")
+									port.SetValue(22)
+									user.SetText("")
+									passwd.SetText("")
 								},
 							},
 						},
