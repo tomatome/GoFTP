@@ -26,6 +26,24 @@ type location struct {
 	Model *FileModel
 }
 
+func (l location) Refresh() {
+	l.Model.SetDirPath(l.Tl.Text())
+}
+
+func (l location) Hidden() {
+	l.SetHidden(true)
+	l.Refresh()
+}
+
+func (l location) Show() {
+	l.SetHidden(false)
+	l.Refresh()
+}
+
+func (l location) SetHidden(hidden bool) {
+	l.Model.hidden = hidden
+}
+
 func (p MyPage) Send() error {
 	var (
 		err        error
@@ -33,13 +51,7 @@ func (p MyPage) Send() error {
 	)
 
 	// 这里换成实际的 SSH 连接的 用户名，密码，主机名或IP，SSH端口
-	sftpClient, err = connect("root", "jhadmin", "192.168.0.76", 22)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer sftpClient.Close()
-
+	sftpClient = p.remote.Model.remote.Link()
 	info := p.local.Model.items[p.local.Tv.CurrentIndex()]
 	var localFilePath = filepath.Join(p.local.Tl.Text(), info.Name)
 	var remoteDir = p.remote.Tl.Text()
@@ -72,24 +84,13 @@ func (p MyPage) Send() error {
 	return nil
 }
 
-func SendFile(local, remote string) {
-
-}
-
 func (p MyPage) Recv() error {
-
 	var (
 		err        error
 		sftpClient *sftp.Client
 	)
 
-	// 这里换成实际的 SSH 连接的 用户名，密码，主机名或IP，SSH端口
-	sftpClient, err = connect("root", "jhadmin", "192.168.0.76", 22)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer sftpClient.Close()
+	sftpClient = p.remote.Model.remote.Link()
 
 	info := p.remote.Model.items[p.remote.Tv.CurrentIndex()]
 	var remoteFilePath = p.remote.Tl.Text() + "/" + info.Name

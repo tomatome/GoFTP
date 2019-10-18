@@ -12,6 +12,40 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+type Client struct {
+	IP       string //IP地址
+	Username string //用户名
+	InitDir  string
+	Password string
+	Port     int          //端口号
+	client   *sftp.Client //ssh客户端
+}
+
+func newClient() *Client {
+	return &Client{
+		IP:       "192.168.0.76",
+		Username: "root",
+		Password: "jhadmin",
+		Port:     22,
+	}
+}
+
+func (c *Client) Title() string {
+	return c.Username + "@" + c.IP
+}
+
+func (c *Client) Link() *sftp.Client {
+	if c.client == nil {
+		sftpClient, err := connect(c.Username, c.Password, c.IP, c.Port)
+		if err != nil {
+			log.Fatal("Connect:", err)
+		}
+		c.client = sftpClient
+	}
+
+	return c.client
+}
+
 func connect(user, password, host string, port int) (*sftp.Client, error) {
 	var (
 		auth         []ssh.AuthMethod
