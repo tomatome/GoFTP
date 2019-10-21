@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -50,11 +51,17 @@ func (p MyPage) Send() error {
 		sftpClient *sftp.Client
 	)
 
-	// 这里换成实际的 SSH 连接的 用户名，密码，主机名或IP，SSH端口
+	fmt.Println("Link:", p.remote.Model.remote.IP)
+
 	sftpClient = p.remote.Model.remote.Link()
 	info := p.local.Model.items[p.local.Tv.CurrentIndex()]
 	var localFilePath = filepath.Join(p.local.Tl.Text(), info.Name)
-	var remoteDir = p.remote.Tl.Text()
+	var remoteFilePath = p.remote.Tl.Text() + "/" + info.Name
+
+	if info.Dir {
+		sftpClient.Mkdir(remoteFilePath)
+	}
+
 	srcFile, err := os.Open(localFilePath)
 	if err != nil {
 		log.Fatal(err)
@@ -62,25 +69,19 @@ func (p MyPage) Send() error {
 	}
 	defer srcFile.Close()
 
-	var remoteFileName = filepath.Base(localFilePath)
-	fmt.Println(localFilePath, remoteFileName)
-	dstFile, err := sftpClient.Create(remoteDir + "/" + remoteFileName)
+	dstFile, err := sftpClient.Create(remoteFilePath)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 	defer dstFile.Close()
 
-	buf := make([]byte, 1024)
-	for {
-		n, _ := srcFile.Read(buf)
-		if n == 0 {
-			break
-		}
-		dstFile.Write(buf)
+	if _, err = io.Copy(dstFile, srcFile); err != nil {
+		log.Fatal(err)
+		return err
 	}
 
-	fmt.Println("copy file to remote server finished!")
+	fmt.Println("send file to remote server finished!")
 	return nil
 }
 
@@ -90,11 +91,13 @@ func (p MyPage) Recv() error {
 		sftpClient *sftp.Client
 	)
 
+	fmt.Println("Link:", p.remote.Model.remote.IP)
+
 	sftpClient = p.remote.Model.remote.Link()
 
 	info := p.remote.Model.items[p.remote.Tv.CurrentIndex()]
+	var localFilePath = path.Join(p.local.Tl.Text(), info.Name)
 	var remoteFilePath = p.remote.Tl.Text() + "/" + info.Name
-	var localDir = p.local.Tl.Text()
 
 	srcFile, err := sftpClient.Open(remoteFilePath)
 	if err != nil {
@@ -103,20 +106,19 @@ func (p MyPage) Recv() error {
 	}
 	defer srcFile.Close()
 
-	var localFileName = info.Name
-	dstFile, err := os.Create(path.Join(localDir, localFileName))
+	dstFile, err := os.Create(localFilePath)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 	defer dstFile.Close()
 
-	if _, err = srcFile.WriteTo(dstFile); err != nil {
+	if _, err = io.Copy(dstFile, srcFile); err != nil {
 		log.Fatal(err)
 		return err
 	}
 
-	fmt.Println("copy file from remote server finished!")
+	fmt.Println("recv file from remote server finished!")
 	return nil
 }
 

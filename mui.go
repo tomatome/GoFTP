@@ -66,7 +66,9 @@ func main() {
 					Text:  "上传",
 					Image: "images/upload.ico",
 					OnTriggered: func() {
-						p := mw.pages[mw.tab.CurrentIndex()]
+						i := mw.tab.CurrentIndex()
+						fmt.Println(i, ":", mw.pages)
+						p := mw.pages[i]
 						now := time.Now()
 						err := p.Send()
 						if err != nil {
@@ -96,7 +98,9 @@ func main() {
 					Text:  "关闭会话",
 					Image: "images/close.ico",
 					OnTriggered: func() {
-						mw.tab.Pages().RemoveAt(mw.tab.CurrentIndex())
+						i := mw.tab.CurrentIndex()
+						mw.tab.Pages().RemoveAt(i)
+						mw.pages = append(mw.pages[:i], mw.pages[i+1:]...)
 					},
 				},
 			},
@@ -293,6 +297,7 @@ func (mw *MyMainWindow) NewSession(c *Client) {
 	mw.tab.Pages().Add(wp)
 	mw.tab.SetCurrentIndex(mw.tab.Pages().Len() - 1)
 	mw.tab.CurrentIndexChanged()
+	mw.pages = append(mw.pages, tp)
 }
 
 func (mw *MyMainWindow) RmSession() {
