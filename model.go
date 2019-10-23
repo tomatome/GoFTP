@@ -142,7 +142,7 @@ func (m *NodeModel) ReadSession() {
 		}
 		var c Client
 		json.Unmarshal([]byte(line), &c)
-		m.Add(&c)
+		m.Add(&c, true)
 	}
 }
 
@@ -180,7 +180,7 @@ func (m *NodeModel) Value(index int) interface{} {
 	return m.nodes[index].Title()
 }
 
-func (m *NodeModel) Add(c *Client) {
+func (m *NodeModel) Add(c *Client, first bool) {
 	for _, v := range m.nodes {
 		if v.IP == c.IP {
 			return
@@ -188,6 +188,9 @@ func (m *NodeModel) Add(c *Client) {
 	}
 	m.nodes = append(m.nodes, c)
 	m.PublishItemsInserted(len(m.nodes)-1, len(m.nodes)-1)
+	if first {
+		return
+	}
 	m.WriteSession(c)
 }
 func (m *NodeModel) Remove(c *Client) {

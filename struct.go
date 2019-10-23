@@ -3,16 +3,11 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
-	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
-	"github.com/pkg/sftp"
 )
 
 type MyPage struct {
@@ -46,77 +41,26 @@ func (l location) SetHidden(hidden bool) {
 }
 
 func (p MyPage) Send() error {
-	var (
-		err        error
-		sftpClient *sftp.Client
-	)
-
 	fmt.Println("Link:", p.remote.Model.remote.IP)
 
-	sftpClient = p.remote.Model.remote.Link()
+	p.remote.Model.remote.Link()
 	info := p.local.Model.items[p.local.Tv.CurrentIndex()]
-	var localFilePath = filepath.Join(p.local.Tl.Text(), info.Name)
-	var remoteFilePath = p.remote.Tl.Text() + "/" + info.Name
+	var localPath = filepath.Join(p.local.Tl.Text(), info.Name)
+	var remotePath = p.remote.Tl.Text()
 
-	if info.Dir {
-		sftpClient.Mkdir(remoteFilePath)
-	}
-
-	srcFile, err := os.Open(localFilePath)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := sftpClient.Create(remoteFilePath)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer dstFile.Close()
-
-	if _, err = io.Copy(dstFile, srcFile); err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	fmt.Println("send file to remote server finished!")
-	return nil
+	return p.remote.Model.remote.Upload(localPath, remotePath)
 }
 
 func (p MyPage) Recv() error {
-	var (
-		err        error
-		sftpClient *sftp.Client
-	)
-
 	fmt.Println("Link:", p.remote.Model.remote.IP)
 
-	sftpClient = p.remote.Model.remote.Link()
+	p.remote.Model.remote.Link()
 
 	info := p.remote.Model.items[p.remote.Tv.CurrentIndex()]
-	var localFilePath = path.Join(p.local.Tl.Text(), info.Name)
-	var remoteFilePath = p.remote.Tl.Text() + "/" + info.Name
+	var localPath = p.local.Tl.Text()
+	var remotePath = p.remote.Tl.Text() + "/" + info.Name
 
-	srcFile, err := sftpClient.Open(remoteFilePath)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer srcFile.Close()
-
-	dstFile, err := os.Create(localFilePath)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	defer dstFile.Close()
-
-	if _, err = io.Copy(dstFile, srcFile); err != nil {
-		log.Fatal(err)
-		return err
-	}
+	p.remote.Model.remote.Download(remotePath, localPath)
 
 	fmt.Println("recv file from remote server finished!")
 	return nil

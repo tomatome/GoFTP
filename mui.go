@@ -265,7 +265,7 @@ func (mw *MyMainWindow) RunNewDialog() {
 									client.Port = int(port.Value())
 									client.Username = user.Text()
 									client.Password = passwd.Text()
-									mw.nodeModel.Add(client)
+									mw.nodeModel.Add(client, false)
 									ip.SetText("")
 									port.SetValue(22)
 									user.SetText("")
