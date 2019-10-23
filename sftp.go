@@ -36,9 +36,20 @@ func newClient() *Client {
 func (c *Client) Title() string {
 	return c.Username + "@" + c.IP
 }
-
-func (c *Client) Link() *sftp.Client {
+func (c *Client) isClose() bool {
 	if c.client == nil {
+		return true
+	}
+
+	if _, e := c.client.Getwd(); e != nil {
+		c.client = nil
+		return true
+	}
+
+	return false
+}
+func (c *Client) Link() *sftp.Client {
+	if c.isClose() {
 		client, err := connect(c.Username, c.Password, c.IP, c.Port)
 		if err != nil {
 			log.Fatal("Connect:", err)
@@ -48,7 +59,24 @@ func (c *Client) Link() *sftp.Client {
 
 	return c.client
 }
-
+func (c *Client) IsDir(path string) bool {
+	info, err := c.client.Stat(path)
+	if err == nil && info.IsDir() {
+		return true
+	}
+	return false
+}
+func (c *Client) IsFile(path string) bool {
+	info, err := c.client.Stat(path)
+	if err == nil && !info.IsDir() {
+		return true
+	}
+	return false
+}
+func (c *Client) IsExist(path string) bool {
+	_, err := c.client.Stat(path)
+	return err == nil
+}
 func connect(user, password, host string, port int) (*sftp.Client, error) {
 	var (
 		auth         []ssh.AuthMethod
@@ -65,7 +93,7 @@ func connect(user, password, host string, port int) (*sftp.Client, error) {
 	clientConfig = &ssh.ClientConfig{
 		User:            user,
 		Auth:            auth,
-		Timeout:         30 * time.Second,
+		Timeout:         60 * time.Second,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
@@ -95,6 +123,109 @@ func (c *Client) Upload(local string, remote string) (err error) {
 	return c.UploadFile(local, remote)
 }
 
+func (c *Client) UploadFile(localFile, remote string) error {
+	info, err := os.Stat(localFile)
+	if err != nil || info.IsDir() {
+		return errors.New("sftp: 本地文件不是文件 UploadFile(\"" + localFile + "\") 跳过上传")
+	}
+
+	l, err := os.Open(localFile)
+	if err != nil {
+		return errors.New("Upload Open " + localFile + ":" + err.Error())
+	}
+	defer l.Close()
+
+	var remoteFile, remoteDir string
+	if remote[len(remote)-1] == '/' {
+		remoteFile = filepath.ToSlash(filepath.Join(remote, filepath.Base(localFile)))
+		remoteDir = remote
+	} else {
+		remoteFile = remote
+		remoteDir = filepath.ToSlash(filepath.Dir(remoteFile))
+	}
+	log.Println("Upload:", localFile, "-->", remoteFile)
+
+	if _, err := c.client.Stat(remoteDir); err != nil {
+		log.Println("Mkdir:", remoteDir)
+		c.MkdirAll(remoteDir)
+	}
+
+	r, err := c.client.Create(remoteFile)
+	if err != nil {
+		c.client = nil
+		c.Link()
+		r, err = c.client.Create(remoteFile)
+		if err != nil {
+			return errors.New("Upload Create " + remoteFile + ":" + err.Error())
+		}
+	}
+
+	_, err = io.Copy(r, l)
+
+	return err
+}
+
+// UploadDir files without checking diff status
+func (c *Client) UploadDir(localDir string, remoteDir string) (err error) {
+	log.Println("sftp: UploadDir", localDir, "-->", remoteDir)
+
+	rootLocal := filepath.Dir(localDir)
+	if c.IsFile(remoteDir) {
+		log.Println("sftp: Remove File:", remoteDir)
+		c.client.Remove(remoteDir)
+	}
+
+	walkFunc := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Println("err:", err)
+			return err
+		}
+
+		relSrc, err := filepath.Rel(rootLocal, path)
+		if err != nil {
+			return err
+		}
+		finalDst := filepath.Join(remoteDir, relSrc)
+		finalDst = filepath.ToSlash(finalDst)
+		if info.IsDir() {
+			if c.IsExist(finalDst) {
+				return nil
+			}
+			err := c.MkdirAll(finalDst)
+			if err != nil {
+				log.Println("Mkdir failed:", err)
+			}
+		} else {
+			return c.UploadFile(path, finalDst)
+		}
+		return nil
+
+	}
+	return filepath.Walk(localDir, walkFunc)
+}
+func (c *Client) MkdirAll(dirpath string) error {
+	parentDir := filepath.ToSlash(filepath.Dir(dirpath))
+	_, err := c.client.Stat(parentDir)
+	if err != nil {
+		if err.Error() == "file does not exist" {
+			err := c.MkdirAll(parentDir)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	if c.isClose() {
+		c.Link()
+	}
+	err = c.client.Mkdir(filepath.ToSlash(dirpath))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) Download(remote string, local string) (err error) {
 	if c.IsDir(remote) {
 		return c.downloadDir(remote, local)
@@ -107,7 +238,7 @@ func (c *Client) Download(remote string, local string) (err error) {
 // downloadFile a file from the remote server like cp
 func (c *Client) downloadFile(remoteFile, local string) error {
 	if !c.IsFile(remoteFile) {
-		return errors.New("sftp: 文件不存在或不是文件, 跳过目录下载 downloadFile(" + remoteFile + ")")
+		return errors.New("文件不存在或不是文件, 跳过目录下载 downloadFile(" + remoteFile + ")")
 	}
 
 	localFile := filepath.ToSlash(local)
@@ -137,7 +268,7 @@ func (c *Client) downloadDir(remote, local string) error {
 	var localDir, remoteDir string
 
 	if !c.IsDir(remote) {
-		return errors.New("sftp: 目录不存在或不是目录, 跳过 downloadDir(" + remote + ")")
+		return errors.New("目录不存在或不是目录, 跳过 downloadDir(" + remote + ")")
 	}
 	remoteDir = remote
 	if remote[len(remote)-1] == '/' {
@@ -195,114 +326,4 @@ func (c *Client) downloadDir(remote, local string) error {
 
 	}
 	return nil
-}
-
-//UploadFile 上传本地文件 localFile 到sftp远程目录 remote
-func (c *Client) UploadFile(localFile, remote string) error {
-	info, err := os.Stat(localFile)
-	if err != nil || info.IsDir() {
-		return errors.New("sftp: 本地文件不是文件 UploadFile(\"" + localFile + "\") 跳过上传")
-	}
-
-	l, err := os.Open(localFile)
-	if err != nil {
-		return err
-	}
-	defer l.Close()
-
-	var remoteFile, remoteDir string
-	if remote[len(remote)-1] == '/' {
-		remoteFile = filepath.ToSlash(filepath.Join(remote, filepath.Base(localFile)))
-		remoteDir = remote
-	} else {
-		remoteFile = remote
-		remoteDir = filepath.ToSlash(filepath.Dir(remoteFile))
-	}
-	log.Println("sftp: UploadFile", localFile, ":", remoteFile)
-
-	if _, err := c.client.Stat(remoteDir); err != nil {
-		log.Println("sftp: Mkdir all", remoteDir)
-		c.MkdirAll(remoteDir)
-	}
-	log.Println("sftp: Mkdir all", remoteDir)
-	r, err := c.client.Create(remoteFile)
-	if err != nil {
-		return err
-	}
-	log.Println("sftp: Copy all", remoteDir)
-	_, err = io.Copy(r, l)
-	return err
-}
-
-// UploadDir files without checking diff status
-func (c *Client) UploadDir(localDir string, remoteDir string) (err error) {
-	log.Println("sftp: UploadDir", localDir, "-->", remoteDir)
-
-	rootLocal := filepath.Dir(localDir)
-	if c.IsFile(remoteDir) {
-		log.Println("sftp: Remove File:", remoteDir)
-		c.client.Remove(remoteDir)
-	}
-
-	walkFunc := func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relSrc, err := filepath.Rel(rootLocal, path)
-		if err != nil {
-			return err
-		}
-		finalDst := filepath.Join(remoteDir, relSrc)
-		finalDst = filepath.ToSlash(finalDst)
-		log.Println("finalDst:", finalDst)
-		if info.IsDir() {
-			err := c.MkdirAll(finalDst)
-			if err != nil {
-				log.Println(finalDst, ",sftp: MkdirAll", err)
-			}
-		} else {
-			return c.UploadFile(path, finalDst)
-		}
-		return nil
-
-	}
-	return filepath.Walk(localDir, walkFunc)
-}
-func (c *Client) MkdirAll(dirpath string) error {
-	parentDir := filepath.ToSlash(filepath.Dir(dirpath))
-	_, err := c.client.Stat(parentDir)
-	if err != nil {
-		if err.Error() == "file does not exist" {
-			err := c.MkdirAll(parentDir)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	err = c.client.Mkdir(filepath.ToSlash(dirpath))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-func (c *Client) IsDir(path string) bool {
-	info, err := c.client.Stat(path)
-	if err == nil && info.IsDir() {
-		return true
-	}
-	return false
-}
-func (c *Client) IsFile(path string) bool {
-	info, err := c.client.Stat(path)
-	if err == nil && !info.IsDir() {
-		return true
-	}
-	return false
-}
-func (c *Client) IsExist(path string) bool {
-	_, err := c.client.Stat(path)
-	return err == nil
 }

@@ -74,7 +74,7 @@ func main() {
 						if err != nil {
 							mw.sbi.SetText(err.Error())
 						} else {
-							mw.sbi.SetText("Send successfully:" + time.Now().Sub(now).String())
+							mw.sbi.SetText("Send successfully: " + time.Now().Sub(now).String())
 						}
 						p.remote.Model.SetDirPath(p.remote.Tl.Text())
 					},
@@ -89,7 +89,7 @@ func main() {
 						if err != nil {
 							mw.sbi.SetText(err.Error())
 						} else {
-							mw.sbi.SetText("Recv successfully:" + time.Now().Sub(now).String())
+							mw.sbi.SetText("Recv successfully: " + time.Now().Sub(now).String())
 						}
 						p.local.Model.SetDirPath(p.local.Tl.Text())
 					},
