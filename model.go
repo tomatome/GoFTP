@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -57,7 +58,7 @@ func (m *FileModel) SetDirPath(dirPath string) error {
 		w, err = ioutil.ReadDir(dirPath)
 	}
 	if err != nil {
-		fmt.Println(dirPath, ":", err)
+		log.Println(dirPath, ":", err)
 		return err
 	}
 
