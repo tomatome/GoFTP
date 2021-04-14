@@ -25,8 +25,9 @@ type Client struct {
 }
 
 func newClient() *Client {
+	return nil
 	return &Client{
-		IP:       "192.168.0.76",
+		IP:       "192.168.18.102",
 		Username: "root",
 		Password: "jhadmin",
 		Port:     22,
@@ -48,16 +49,17 @@ func (c *Client) isClose() bool {
 
 	return false
 }
-func (c *Client) Link() *sftp.Client {
+func (c *Client) Link() (*sftp.Client, error) {
 	if c.isClose() {
 		client, err := connect(c.Username, c.Password, c.IP, c.Port)
 		if err != nil {
-			log.Fatal("Connect:", err)
+			log.Println("Link:", err)
+			return nil, err
 		}
 		c.client = client
 	}
 
-	return c.client
+	return c.client, nil
 }
 func (c *Client) IsDir(path string) bool {
 	info, err := c.client.Stat(path)
@@ -66,6 +68,7 @@ func (c *Client) IsDir(path string) bool {
 	}
 	return false
 }
+
 func (c *Client) IsFile(path string) bool {
 	info, err := c.client.Stat(path)
 	if err == nil && !info.IsDir() {
@@ -93,7 +96,7 @@ func connect(user, password, host string, port int) (*sftp.Client, error) {
 	clientConfig = &ssh.ClientConfig{
 		User:            user,
 		Auth:            auth,
-		Timeout:         60 * time.Second,
+		Timeout:         2 * time.Second,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 

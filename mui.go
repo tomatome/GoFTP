@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 )
@@ -15,6 +17,33 @@ import (
 const (
 	Title = "客户端"
 )
+
+//go:embed images/client.ico
+var client_ico string
+
+//go:embed images/close.ico
+var close_ico string
+
+//go:embed images/close2.ico
+var close2_ico string
+
+//go:embed images/dir.ico
+var dir_ico string
+
+//go:embed images/down.ico
+var down_ico string
+
+//go:embed images/file.ico
+var file_ico string
+
+//go:embed images/list.ico
+var list_ico string
+
+//go:embed images/session.ico
+var session_ico string
+
+//go:embed images/upload.ico
+var upload_ico string
 
 type MyMainWindow struct {
 	main      *walk.MainWindow
@@ -41,12 +70,15 @@ func initWindows() *MyMainWindow {
 var mw *MyMainWindow
 
 func main() {
+	fmt.Println(client_ico)
 	mw = initWindows()
 	MWindow := MainWindow{
-		AssignTo:  &mw.main,
-		Title:     Title,
-		Icon:      "images/client.ico",
-		MinSize:   Size{900, 600},
+		AssignTo: &mw.main,
+		Title:    Title,
+		Icon:     "images/client.ico",
+		//Icon:      client_ico,
+		MinSize:   Size{600, 400},
+		Size:      Size{900, 600},
 		MenuItems: mw.initMenus(),
 		ToolBar: ToolBar{
 			ButtonStyle: ToolBarButtonImageBeforeText,
@@ -54,6 +86,7 @@ func main() {
 				Action{
 					Text:  "会话管理",
 					Image: "images/list.ico",
+					//Image: list_ico,
 					OnTriggered: func() {
 						if mw.hlb.Visible() {
 							mw.hlb.SetVisible(false)
@@ -65,6 +98,7 @@ func main() {
 				Action{
 					Text:  "上传",
 					Image: "images/upload.ico",
+					//Image: upload_ico,
 					OnTriggered: func() {
 						i := mw.tab.CurrentIndex()
 						fmt.Println(i, ":", mw.pages)
@@ -82,6 +116,7 @@ func main() {
 				Action{
 					Text:  "下载",
 					Image: "images/down.ico",
+					//Image: down_ico,
 					OnTriggered: func() {
 						p := mw.pages[mw.tab.CurrentIndex()]
 						now := time.Now()
@@ -97,6 +132,7 @@ func main() {
 				Action{
 					Text:  "关闭会话",
 					Image: "images/close.ico",
+					//Image: close_ico,
 					OnTriggered: func() {
 						i := mw.tab.CurrentIndex()
 						mw.tab.Pages().RemoveAt(i)
@@ -154,6 +190,7 @@ func initAction(text string, c walk.EventHandler, key walk.Key, img string) Acti
 	act.Shortcut = Shortcut{walk.ModControl, key}
 	if img != "" {
 		act.Image = "images/" + img
+		//act.Image = session_ico
 	}
 
 	return act
@@ -290,14 +327,27 @@ func (mw *MyMainWindow) RunNewDialog() {
 }
 
 func (mw *MyMainWindow) NewSession(c *Client) {
-	var wp *walk.TabPage
-	tp := initTabPage(c)
-	tp.page.AssignTo = &wp
-	tp.page.Create(NewBuilder(mw.tab.Parent()))
-	mw.tab.Pages().Add(wp)
+
+	if len(mw.pages) == 1 && mw.pages[0].page.Title == "New" {
+		tp := mw.pages[0]
+		tp.remote.Model.remote = c
+		tp.remote.Model.SetDirPath("/")
+		tp.page.Title = c.Title()
+		(*tp.page.AssignTo).SetTitle(c.Title())
+	} else {
+		var wp *walk.TabPage
+		tp := initTabPage(c)
+		if tp == nil {
+			return
+		}
+		tp.page.AssignTo = &wp
+		tp.page.Create(NewBuilder(mw.tab.Parent()))
+		mw.tab.Pages().Add(wp)
+		mw.pages = append(mw.pages, tp)
+	}
+
 	mw.tab.SetCurrentIndex(mw.tab.Pages().Len() - 1)
 	mw.tab.CurrentIndexChanged()
-	mw.pages = append(mw.pages, tp)
 }
 
 func (mw *MyMainWindow) RmSession() {
@@ -333,10 +383,22 @@ func initTabPage(c *Client) *MyPage {
 	p.local.Model = NewFileModel(nil)
 	p.local.Model.SetDirPath("D:\\")
 	p.remote.Model = NewFileModel(c)
-	p.remote.Model.SetDirPath("/")
+	p.page.Title = "New"
+	var wp *walk.TabPage
+	p.page.AssignTo = &wp
+	if c != nil {
+		t := c.Title()
+		mw.sbi.SetText("Connect to " + t)
+		err := p.remote.Model.SetDirPath("/")
+		if err != nil {
+			mw.sbi.SetText(err.Error())
+			return nil
+		}
+		p.page.Title = t
+	}
 
-	p.page.Title = c.Title()
 	p.page.Image = "images/session.ico"
+	//p.page.Image = session_ico
 	p.page.Layout = VBox{}
 	p.page.Children = []Widget{
 		HSplitter{
@@ -427,8 +489,8 @@ func initTabPage(c *Client) *MyPage {
 }
 func (mw *MyMainWindow) initTabWidget() TabWidget {
 	pages := make([]TabPage, 0, 2)
-	c := newClient()
-	p := initTabPage(c)
+	//c := newClient()
+	p := initTabPage(nil)
 	mw.pages = append(mw.pages, p)
 	pages = append(pages, p.page)
 	return TabWidget{

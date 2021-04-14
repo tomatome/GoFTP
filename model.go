@@ -52,7 +52,10 @@ func (m *FileModel) SetDirPath(dirPath string) error {
 	var w []os.FileInfo
 	var err error
 	if m.remote != nil {
-		c := m.remote.Link()
+		c, err := m.remote.Link()
+		if err != nil {
+			return err
+		}
 		w, err = c.ReadDir(dirPath)
 	} else {
 		w, err = ioutil.ReadDir(dirPath)
@@ -95,8 +98,10 @@ func (m *FileModel) SetDirPath(dirPath string) error {
 func (m *FileModel) Image(row int) interface{} {
 	if m.items[row].Dir {
 		return "images/dir.ico"
+		//return dir_ico
 	}
 	return "images/file.ico"
+	//return file_ico
 }
 func (m *FileModel) shouldExclude(name string) bool {
 	switch name {
